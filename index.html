@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>客户跟进</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --panel: #ffffff;
+    --text: #1d1d1f;
+    --muted: #86868b;
+    --border: #e5e5ea;
+    --accent: #0071e3;
+    --danger: #ff453a;
+    --warn: #ff9f0a;
+    --green: #30d158;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100%; overflow: hidden;
+  }
+  .app { display: flex; flex-direction: column; height: 100%; }
+  .scroll { flex: 1; overflow-y: auto; padding: 12px 14px 24px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px 8px; flex-wrap: wrap; gap: 6px;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    font-size: 12px; color: var(--muted); background: transparent;
+    border: 1px solid transparent; user-select: none;
+  }
+  .tab.active { background: var(--panel); color: var(--text); border-color: var(--border); box-shadow: var(--shadow); }
+  .tab .count { opacity: .55; margin-left: 3px; }
+
+  .composer {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px; box-shadow: var(--shadow);
+    margin-bottom: 12px;
+  }
+  .composer textarea {
+    width: 100%; min-height: 48px; border: none; outline: none;
+    resize: vertical; background: transparent; color: var(--text);
+    font: inherit; font-size: 13px; line-height: 1.5;
+  }
+  .reminder-row {
+    display: flex; gap: 6px; align-items: center;
+    margin: 6px 0; font-size: 12px; color: var(--muted);
+  }
+  .reminder-row input[type="date"], .reminder-row input[type="time"] {
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 3px 6px; font: inherit; font-size: 12px;
+    background: var(--bg); color: var(--text);
+  }
+  .reminder-row .clear-rem {
+    cursor: pointer; color: var(--muted); padding: 2px 6px; border-radius: 4px;
+  }
+  .reminder-row .clear-rem:hover { color: var(--text); background: var(--bg); }
+  .composer-bottom {
+    display: flex; align-items: center; justify-content: flex-end; margin-top: 6px;
+  }
+  .btn {
+    padding: 5px 14px; border-radius: 999px; border: none; cursor: pointer;
+    background: var(--accent); color: white; font-size: 12px; font-weight: 500;
+  }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .card {
+    background: var(--panel); border-radius: 10px; padding: 10px 10px 10px 14px;
+    box-shadow: var(--shadow); display: flex; gap: 8px;
+    border-left: 4px solid var(--muted); position: relative;
+  }
+  /* status-driven left border (the ONLY channel for status color) */
+  .card.st-pending  { border-left-color: var(--warn); }
+  .card.st-followed { border-left-color: var(--green); }
+  .card.st-closed   { border-left-color: var(--muted); }
+  .card.st-closed .content { color: var(--muted); }
+
+  .dot {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: white;
+  }
+  .dot.st-pending  { background: var(--warn); }
+  .dot.st-followed { background: var(--green); }
+  .dot.st-closed   { background: var(--muted); }
+
+  .body { flex: 1; min-width: 0; }
+  .content {
+    white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.45; outline: none;
+  }
+  .content[contenteditable="true"] {
+    background: rgba(0,113,227,.06); border-radius: 6px; padding: 3px 5px; margin: -3px -5px;
+  }
+  .meta {
+    font-size: 11px; color: var(--muted); margin-top: 5px;
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .neglect.warn { color: var(--danger); font-weight: 500; }
+  /* reminder badge = the ONLY channel for "next follow-up time" */
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 6px; border-radius: 6px; background: var(--bg); cursor: pointer;
+  }
+  .badge.due { background: var(--danger); color: white; }
+  .badge.soon { background: var(--warn); color: white; }
+
+  .actions {
+    display: flex; gap: 4px; align-items: flex-start; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .act {
+    border: 1px solid var(--border); background: var(--panel); cursor: pointer;
+    padding: 4px 10px; border-radius: 999px; color: var(--text); font-size: 11px;
+  }
+  .act:hover { background: var(--bg); }
+  .act.primary { background: var(--green); border-color: var(--green); color: white; font-weight: 500; }
+  .act.primary.undo { background: var(--panel); border-color: var(--green); color: var(--green); }
+  .act.ghost { border-color: transparent; color: var(--muted); }
+  .act.ghost:hover { color: var(--text); }
+  .act.danger:hover { color: var(--danger); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 16px; font-size: 12px; }
+
+  .log-btn {
+    padding: 5px 11px; border-radius: 999px; cursor: pointer; font-size: 12px;
+    color: var(--muted); background: transparent; border: 1px solid var(--border); user-select: none;
+  }
+  .log-btn:hover { color: var(--text); background: var(--panel); }
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal-mask.open { display: flex; }
+  .modal {
+    background: var(--panel); border-radius: 14px; box-shadow: var(--shadow);
+    width: min(560px, 92vw); max-height: 82vh; display: flex; flex-direction: column;
+  }
+  .modal-head {
+    display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-head h2 { font-size: 14px; margin: 0; flex: 1; }
+  .modal-body { overflow-y: auto; padding: 8px 14px; }
+  .log-line {
+    font-size: 12px; line-height: 1.5; padding: 4px 0;
+    border-bottom: 1px dashed var(--border); display: flex; gap: 8px;
+  }
+  .log-line .t { color: var(--muted); white-space: nowrap; }
+  .log-line .a { font-weight: 600; white-space: nowrap; }
+  .log-line.a-follow .a { color: var(--green); }
+  .log-line.a-close  .a { color: var(--muted); }
+  .log-line.a-create .a { color: var(--accent); }
+  .log-line.a-delete .a { color: var(--danger); }
+  .log-line .txt { color: var(--text); word-break: break-word; }
+  .log-line .note { color: var(--muted); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #d2d2d7; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a1a1a6; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>客户跟进</h1>
+    <div class="tabs">
+      <div class="tab active" data-tab="pending">未跟进 <span class="count" id="count-pending">0</span></div>
+      <div class="tab" data-tab="followed">今日已跟进 <span class="count" id="count-followed">0</span></div>
+      <div class="tab" data-tab="closed">结束跟进 <span class="count" id="count-closed">0</span></div>
+      <div class="log-btn" id="log-btn" title="查看 / 复制变更日志（用于周报）">📋 日志</div>
+    </div>
+  </header>
+
+  <div class="modal-mask" id="log-mask">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>变更日志</h2>
+        <button class="act" id="copy-week">复制本周</button>
+        <button class="act" id="copy-all">复制全部</button>
+        <button class="act ghost" id="log-close">关闭</button>
+      </div>
+      <div class="modal-body" id="log-body"></div>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <div class="composer" id="composer">
+      <textarea id="input" placeholder="新增客户 / 客户需求…（Ctrl+Enter 添加）"></textarea>
+      <div class="reminder-row">
+        <span>下次跟进提醒</span>
+        <input type="date" id="rem-date">
+        <input type="time" id="rem-time" step="60">
+        <span class="clear-rem" id="clear-rem">清除</span>
+      </div>
+      <div class="composer-bottom">
+        <button class="btn" id="add-btn">添加</button>
+      </div>
+    </div>
+
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<script>
+// qwebchannel persistence bridge is provided by the Qt host (app.py).
+// In a plain browser it gracefully falls back to localStorage.
+
+/* ---------- status model (config-driven, easy to extend) ---------- */
+const STATUS = {
+  pending:  { label: '未跟进',    tab: 'pending'  },
+  followed: { label: '今日已跟进', tab: 'followed' },
+  closed:   { label: '结束跟进',   tab: 'closed'   },
+};
+// Derive a memo's current status. "今日已跟进" auto-decays to "未跟进"
+// the next calendar day because it is computed from lastFollowUpAt.
+function statusOf(m) {
+  if (m.closed) return 'closed';
+  if (isSameDay(m.lastFollowUpAt, Date.now())) return 'followed';
+  return 'pending';
+}
+
+const STORAGE_KEY = 'desktop-memo-v3';
+const SAVE_TAG = '@@MEMO_SAVE@@';
+const LOG_TAG = '@@MEMO_LOG@@';
+const LOG_VERSION = 1;
+const SCHEMA = 3;
+const HOSTED = typeof window.__MEMO_INITIAL__ === 'string';
+let state = { memos: [], schemaVersion: SCHEMA };
+let logEntries = [];          // in-memory mirror of activity.jsonl
+let currentTab = 'pending';
+
+const ACTION_LABEL = {
+  create: '新增', follow: '跟进', undo_follow: '撤销跟进',
+  close: '结束跟进', reopen: '重启跟进', edit: '编辑',
+  remind: '设提醒', delete: '删除',
+};
+
+/* ---------- persistence ---------- */
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { memos: [] };
+}
+function loadInitial() {
+  let data = null;
+  if (HOSTED && window.__MEMO_INITIAL__) {
+    try {
+      const parsed = JSON.parse(window.__MEMO_INITIAL__);
+      if (parsed && Array.isArray(parsed.memos)) data = parsed;
+    } catch (e) { console.warn('parse initial failed', e); }
+  }
+  if (!data) data = loadFromLocalStorage();   // migrate localStorage on first run
+  return migrate(data);
+}
+// Versioned migration: maps the old done/color schema onto the follow-up model
+// without destroying data. Old fields are dropped only after mapping.
+function migrate(data) {
+  if (!data || !Array.isArray(data.memos)) return { memos: [], schemaVersion: SCHEMA };
+  data.memos.forEach(m => {
+    if (m.closed === undefined) {
+      m.closed = !!m.done;
+      m.closedAt = m.done ? (m.doneAt || Date.now()) : null;
+    }
+    if (m.closedAt === undefined) m.closedAt = null;
+    if (m.lastFollowUpAt === undefined) m.lastFollowUpAt = null;
+    if (!Array.isArray(m.followUps)) m.followUps = [];
+    // followUps entries upgraded from bare timestamps to {at, note}
+    m.followUps = m.followUps.map(fu =>
+      typeof fu === 'number' ? { at: fu, note: '' } : fu);
+    if (m.order === undefined) m.order = 0;
+    if (m.createdAt === undefined) m.createdAt = Date.now();
+    if (m.remindAt === undefined) m.remindAt = null;
+    delete m.done; delete m.doneAt; delete m.color;
+  });
+  data.schemaVersion = SCHEMA;
+  return data;
+}
+function save() {
+  const payload = JSON.stringify(state);
+  try { localStorage.setItem(STORAGE_KEY, payload); } catch (e) {}
+  if (HOSTED) { try { console.log(SAVE_TAG + payload); } catch (e) {} }
+}
+
+/* ---------- activity log (append-only, self-contained) ---------- */
+function loadLog() {
+  const raw = (HOSTED && typeof window.__MEMO_LOG_INITIAL__ === 'string')
+    ? window.__MEMO_LOG_INITIAL__
+    : (localStorage.getItem('desktop-memo-log') || '');
+  const out = [];
+  raw.split('\n').forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    try { out.push(JSON.parse(line)); } catch (e) { /* skip bad line */ }
+  });
+  return out;
+}
+// Records one change. Self-contained: snapshots customer name + status so the
+// entry stays meaningful even if the memo is later edited or deleted.
+function logEvent(action, memo, detail, statusBefore, statusAfter) {
+  const entry = {
+    v: LOG_VERSION,
+    ts: Date.now(),
+    action,
+    memoId: memo ? memo.id : null,
+    memoText: memo ? memo.text : '',
+    statusBefore: statusBefore || null,
+    statusAfter: statusAfter || null,
+    detail: detail || null,
+  };
+  logEntries.push(entry);
+  const line = JSON.stringify(entry);
+  if (HOSTED) {
+    try { console.log(LOG_TAG + line); } catch (e) {}   // Python appends to file
+  } else {
+    // browser fallback: keep an append-only copy in localStorage
+    try {
+      const prev = localStorage.getItem('desktop-memo-log') || '';
+      localStorage.setItem('desktop-memo-log', prev + line + '\n');
+    } catch (e) {}
+  }
+}
+
+/* ---------- time helpers ---------- */
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function pad(n) { return String(n).padStart(2, '0'); }
+function isSameDay(ts, now) {
+  if (!ts) return false;
+  return new Date(ts).toDateString() === new Date(now).toDateString();
+}
+function dayDiff(ts) {            // whole calendar days between ts and today
+  const a = new Date(ts); a.setHours(0,0,0,0);
+  const b = new Date();   b.setHours(0,0,0,0);
+  return Math.round((b - a) / 86400000);
+}
+function formatTime(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function formatRemind(ts) {
+  const d = new Date(ts), now = new Date();
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (isSameDay(ts, now)) return `今天 ${hm}`;
+  const tmr = new Date(now); tmr.setDate(tmr.getDate()+1);
+  if (isSameDay(ts, tmr)) return `明天 ${hm}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${hm}`;
+}
+// neglect text for pending/closed cards
+function neglectText(m) {
+  if (!m.lastFollowUpAt) return { text: '从未跟进', warn: true };
+  const n = dayDiff(m.lastFollowUpAt);
+  if (n <= 0) return { text: '今天跟进过', warn: false };
+  if (n === 1) return { text: '昨天跟进', warn: false };
+  return { text: `${n} 天前跟进`, warn: n >= 3 };
+}
+// reminder urgency relative to now
+function remindState(ts) {
+  if (!ts) return null;
+  const diff = ts - Date.now();
+  if (diff <= 0) return 'due';
+  if (diff < 24 * 60 * 60 * 1000) return 'soon';
+  return null;
+}
+
+/* ---------- sorting ----------
+   未跟进 (pending) priority, explicit & predictable:
+     1) 到期/逾期提醒  → by remindAt asc (most overdue first)
+     2) 未排期         → by neglect asc (most neglected first)
+     3) 已排期未到期    → by remindAt asc (soonest first)
+*/
+function pendingBucket(m) {
+  if (m.remindAt && m.remindAt <= Date.now()) return 0;
+  if (!m.remindAt) return 1;
+  return 2;
+}
+function sortPending(a, b) {
+  const ba = pendingBucket(a), bb = pendingBucket(b);
+  if (ba !== bb) return ba - bb;
+  if (ba === 0 || ba === 2) return a.remindAt - b.remindAt;
+  // bucket 1: most neglected first (oldest lastFollowUp/created)
+  return (a.lastFollowUpAt || a.createdAt) - (b.lastFollowUpAt || b.createdAt);
+}
+
+/* ---------- render ---------- */
+function render() {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
+  document.getElementById('composer').style.display = currentTab === 'pending' ? '' : 'none';
+
+  const groups = { pending: [], followed: [], closed: [] };
+  state.memos.forEach(m => groups[STATUS[statusOf(m)].tab].push(m));
+  document.getElementById('count-pending').textContent  = groups.pending.length;
+  document.getElementById('count-followed').textContent = groups.followed.length;
+  document.getElementById('count-closed').textContent   = groups.closed.length;
+
+  let items = groups[currentTab].slice();
+  if (currentTab === 'pending')  items.sort(sortPending);
+  if (currentTab === 'followed') items.sort((a,b) => (b.lastFollowUpAt||0) - (a.lastFollowUpAt||0));
+  if (currentTab === 'closed')   items.sort((a,b) => (b.closedAt||0) - (a.closedAt||0));
+
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  if (items.length === 0) {
+    const e = document.createElement('div');
+    e.className = 'empty';
+    e.textContent = currentTab === 'pending' ? '没有待跟进的客户 🎉'
+                   : currentTab === 'followed' ? '今天还没跟进任何客户'
+                   : '没有已结束的跟进';
+    list.appendChild(e);
+    return;
+  }
+  items.forEach(m => list.appendChild(renderCard(m)));
+}
+
+function renderCard(m) {
+  const st = statusOf(m);
+  const card = document.createElement('div');
+  card.className = `card st-${st}`;
+  card.dataset.id = m.id;
+
+  const dot = document.createElement('div');
+  dot.className = `dot st-${st}`;
+  dot.textContent = st === 'followed' ? '✓' : (st === 'closed' ? '✕' : '');
+  dot.title = STATUS[st].label;
+  card.appendChild(dot);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+
+  const content = document.createElement('div');
+  content.className = 'content';
+  content.textContent = m.text;
+  content.title = '双击编辑';
+  content.ondblclick = () => startEdit(content, m.id);
+  body.appendChild(content);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+
+  // neglect / follow-up time
+  if (st === 'followed') {
+    const s = document.createElement('span');
+    s.textContent = '✓ ' + formatRemind(m.lastFollowUpAt) + ' 跟进';
+    meta.appendChild(s);
+    const lastNote = (m.followUps && m.followUps.length) ? m.followUps[m.followUps.length-1].note : '';
+    if (lastNote) {
+      const n = document.createElement('span');
+      n.textContent = '· ' + lastNote;
+      n.style.color = 'var(--text)';
+      meta.appendChild(n);
+    }
+  } else if (st === 'closed') {
+    const s = document.createElement('span');
+    s.textContent = '结束于 ' + formatTime(m.closedAt);
+    meta.appendChild(s);
+  } else {
+    const ng = neglectText(m);
+    const s = document.createElement('span');
+    s.className = 'neglect' + (ng.warn ? ' warn' : '');
+    s.textContent = ng.text;
+    meta.appendChild(s);
+  }
+
+  // reminder badge (separate visual channel; only for non-closed)
+  if (st !== 'closed') {
+    const rs = remindState(m.remindAt);
+    const badge = document.createElement('span');
+    badge.className = 'badge' + (rs ? ' ' + rs : '');
+    badge.textContent = m.remindAt ? '⏰ ' + formatRemind(m.remindAt) : '+ 下次提醒';
+    badge.title = m.remindAt ? '点击修改下次跟进提醒' : '设置下次跟进提醒';
+    badge.onclick = () => editReminder(m.id);
+    meta.appendChild(badge);
+  }
+  body.appendChild(meta);
+
+  // actions
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  if (st === 'pending') {
+    actions.appendChild(mkBtn('✓ 今日已跟进', 'act primary', () => markFollowed(m.id)));
+    actions.appendChild(mkBtn('结束跟进', 'act', () => closeMemo(m.id)));
+    actions.appendChild(mkBtn('编辑', 'act ghost', () => startEdit(content, m.id)));
+    actions.appendChild(mkBtn('删除', 'act ghost danger', () => removeMemo(m.id)));
+  } else if (st === 'followed') {
+    actions.appendChild(mkBtn('撤销今日跟进', 'act primary undo', () => undoFollowedToday(m.id)));
+    actions.appendChild(mkBtn('结束跟进', 'act', () => closeMemo(m.id)));
+    actions.appendChild(mkBtn('编辑', 'act ghost', () => startEdit(content, m.id)));
+    actions.appendChild(mkBtn('删除', 'act ghost danger', () => removeMemo(m.id)));
+  } else { // closed
+    actions.appendChild(mkBtn('重新跟进', 'act', () => reopenMemo(m.id)));
+    actions.appendChild(mkBtn('删除', 'act ghost danger', () => removeMemo(m.id)));
+  }
+  body.appendChild(actions);
+
+  card.appendChild(body);
+  return card;
+}
+function mkBtn(text, cls, fn) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = text; b.onclick = fn;
+  return b;
+}
+
+/* ---------- actions ---------- */
+function markFollowed(id) {
+  const m = state.memos.find(x => x.id === id);
+  if (!m) return;
+  const before = statusOf(m);
+  const note = (prompt('跟进备注（可选，聊了什么 / 下一步；直接回车跳过）：', '') || '').trim();
+  const now = Date.now();
+  m.followUps = m.followUps || [];
+  m.followUps.push({ at: now, note });
+  m.lastFollowUpAt = now;
+  // if next reminder is now in the past, clear it so it stops nagging
+  if (m.remindAt && m.remindAt <= now) m.remindAt = null;
+  logEvent('follow', m, note ? { note } : null, before, 'followed');
+  save(); render();
+}
+function undoFollowedToday(id) {
+  const m = state.memos.find(x => x.id === id);
+  if (!m) return;
+  m.followUps = (m.followUps || []).filter(fu => !isSameDay(fu.at, Date.now()));
+  m.lastFollowUpAt = m.followUps.length ? m.followUps[m.followUps.length - 1].at : null;
+  logEvent('undo_follow', m, null, 'followed', statusOf(m));
+  save(); render();
+}
+function closeMemo(id) {
+  const m = state.memos.find(x => x.id === id);
+  if (!m) return;
+  const before = statusOf(m);
+  m.closed = true; m.closedAt = Date.now();
+  logEvent('close', m, null, before, 'closed');
+  save(); render();
+}
+function reopenMemo(id) {
+  const m = state.memos.find(x => x.id === id);
+  if (!m) return;
+  m.closed = false; m.closedAt = null;
+  logEvent('reopen', m, null, 'closed', statusOf(m));
+  save(); render();
+}
+function removeMemo(id) {
+  if (!confirm('确定删除这条记录吗？')) return;
+  const m = state.memos.find(x => x.id === id);
+  if (m) logEvent('delete', m, null, statusOf(m), null);
+  state.memos = state.memos.filter(x => x.id !== id);
+  save(); render();
+}
+
+/* ---------- reminder editing ---------- */
+function editReminder(id) {
+  const m = state.memos.find(x => x.id === id);
+  if (!m) return;
+  const cur = m.remindAt ? new Date(m.remindAt) : new Date(Date.now() + 24*60*60*1000);
+  const def = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())} ${pad(cur.getHours())}:${pad(cur.getMinutes())}`;
+  const inp = prompt('设置下次跟进提醒（格式 YYYY-MM-DD HH:MM，留空清除）：', def);
+  if (inp === null) return;
+  if (inp.trim() === '') {
+    m.remindAt = null;
+    logEvent('remind', m, { at: null }, null, null);
+    save(); render(); return;
+  }
+  const parsed = parseDateTime(inp.trim());
+  if (!parsed) { alert('格式不对，应为 YYYY-MM-DD HH:MM'); return; }
+  m.remindAt = parsed;
+  logEvent('remind', m, { at: parsed }, null, null);
+  save(); render();
+}
+function parseDateTime(s) {
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2})$/);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+  return isNaN(d) ? null : d.getTime();
+}
+
+/* ---------- inline content editing ---------- */
+function startEdit(el, id) {
+  el.setAttribute('contenteditable', 'true');
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el); range.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  const finish = () => {
+    el.removeAttribute('contenteditable');
+    const text = el.textContent.trim();
+    const m = state.memos.find(x => x.id === id);
+    if (m) {
+      if (text) {
+        if (text !== m.text) {
+          logEvent('edit', m, { from: m.text, to: text }, null, null);
+          m.text = text; save();
+        }
+      }
+      else { removeMemo(id); return; }
+    }
+    el.removeEventListener('blur', finish);
+    el.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
+    if (e.key === 'Escape') { el.textContent = state.memos.find(x=>x.id===id).text; el.blur(); }
+  };
+  el.addEventListener('blur', finish);
+  el.addEventListener('keydown', onKey);
+}
+
+/* ---------- composer ---------- */
+function getRemindFromComposer() {
+  const d = document.getElementById('rem-date').value;
+  const t = document.getElementById('rem-time').value;
+  if (!d || !t) return null;
+  const [y, mo, da] = d.split('-').map(Number);
+  const [h, mi] = t.split(':').map(Number);
+  return new Date(y, mo-1, da, h, mi, 0, 0).getTime();
+}
+function addMemo() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text) return;
+  const order = state.memos.reduce((a,m) => Math.min(a, m.order||0), 0) - 1;
+  const memo = {
+    id: uid(), text,
+    createdAt: Date.now(),
+    closed: false, closedAt: null,
+    lastFollowUpAt: null, followUps: [],
+    remindAt: getRemindFromComposer(),
+    order,
+  };
+  state.memos.push(memo);
+  logEvent('create', memo, memo.remindAt ? { at: memo.remindAt } : null, null, 'pending');
+  input.value = '';
+  document.getElementById('rem-date').value = '';
+  document.getElementById('rem-time').value = '';
+  save(); render();
+}
+
+/* ---------- activity log viewer / export ---------- */
+function startOfThisWeek() {           // Monday 00:00 local
+  const d = new Date(); d.setHours(0,0,0,0);
+  const dow = (d.getDay() + 6) % 7;    // 0 = Monday
+  d.setDate(d.getDate() - dow);
+  return d.getTime();
+}
+function logLineText(e) {
+  const d = new Date(e.ts);
+  const t = `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const a = ACTION_LABEL[e.action] || e.action;
+  let extra = '';
+  if (e.action === 'follow' && e.detail && e.detail.note) extra = `（${e.detail.note}）`;
+  else if (e.action === 'edit' && e.detail) extra = `：「${e.detail.from}」→「${e.detail.to}」`;
+  else if (e.action === 'remind' && e.detail) extra = e.detail.at ? `：${formatTime(e.detail.at)}` : '：已清除';
+  return `${t}  [${a}] ${e.memoText}${extra}`;
+}
+function renderLog() {
+  const body = document.getElementById('log-body');
+  body.innerHTML = '';
+  if (!logEntries.length) {
+    body.innerHTML = '<div class="empty">还没有任何变更记录</div>';
+    return;
+  }
+  [...logEntries].reverse().forEach(e => {
+    const d = new Date(e.ts);
+    const row = document.createElement('div');
+    row.className = 'log-line a-' + e.action;
+    const t = `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    let extra = '';
+    if (e.action === 'follow' && e.detail && e.detail.note) extra = ` <span class="note">· ${escapeHtml(e.detail.note)}</span>`;
+    else if (e.action === 'edit' && e.detail) extra = ` <span class="note">→ ${escapeHtml(e.detail.to)}</span>`;
+    else if (e.action === 'remind' && e.detail) extra = ` <span class="note">${e.detail.at ? formatTime(e.detail.at) : '已清除'}</span>`;
+    row.innerHTML = `<span class="t">${t}</span><span class="a">${ACTION_LABEL[e.action]||e.action}</span>`
+      + `<span class="txt">${escapeHtml(e.memoText)}${extra}</span>`;
+    body.appendChild(row);
+  });
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function copyLog(weekOnly) {
+  const from = weekOnly ? startOfThisWeek() : 0;
+  const lines = logEntries.filter(e => e.ts >= from).map(logLineText);
+  const header = weekOnly
+    ? `【本周变更日志  ${new Date(startOfThisWeek()).toLocaleDateString()} 起，共 ${lines.length} 条】`
+    : `【全部变更日志，共 ${lines.length} 条】`;
+  const text = header + '\n' + lines.join('\n');
+  const done = () => { const b = document.getElementById(weekOnly?'copy-week':'copy-all'); const o=b.textContent; b.textContent='已复制 ✓'; setTimeout(()=>b.textContent=o,1200); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else { fallbackCopy(text, done); }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function openLog() { renderLog(); document.getElementById('log-mask').classList.add('open'); }
+function closeLog() { document.getElementById('log-mask').classList.remove('open'); }
+
+/* ---------- wiring ---------- */
+document.getElementById('log-btn').onclick = openLog;
+document.getElementById('log-close').onclick = closeLog;
+document.getElementById('log-mask').onclick = (e) => { if (e.target.id === 'log-mask') closeLog(); };
+document.getElementById('copy-week').onclick = () => copyLog(true);
+document.getElementById('copy-all').onclick = () => copyLog(false);
+document.getElementById('add-btn').onclick = addMemo;
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addMemo(); }
+});
+document.getElementById('clear-rem').onclick = () => {
+  document.getElementById('rem-date').value = '';
+  document.getElementById('rem-time').value = '';
+};
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => { currentTab = t.dataset.tab; render(); };
+});
+
+// periodic re-render keeps statuses fresh across midnight & reminder due times
+setInterval(render, 30000);
+
+state = loadInitial();
+logEntries = loadLog();
+if (HOSTED && !window.__MEMO_FILE_EXISTED__) save();
+render();
+</script>
+</body>
+</html>

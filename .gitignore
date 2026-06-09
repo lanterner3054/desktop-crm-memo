@@ -1,0 +1,35 @@
+# ===== 客户/隐私数据：绝对不能提交 =====
+recovered_*.json
+recovered_*.txt
+*_seed.json
+_seed.json
+memos.json
+activity.jsonl
+*.bak.*.json
+*.before-recover.bak
+
+# ===== 构建产物 =====
+build/
+dist/
+installer_out/
+_installtest/
+*.spec
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ===== 工具/本地配置 =====
+.claude/
+qwebchannel.js          # 运行时从 Qt 资源提取，不入库
+
+# ===== OS / 编辑器 =====
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
