@@ -63,4 +63,4 @@ ISCC installer.iss
 
 ## License
 
-MIT
+MIT © [lanterner3054](https://github.com/lanterner3054)
