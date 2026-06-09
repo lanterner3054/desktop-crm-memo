@@ -2,8 +2,10 @@
 ; Builds a per-user installer (no admin/UAC prompt for recipients).
 
 #define MyAppName "客户跟进"
-#define MyAppVersion "1.0"
-#define MyAppPublisher "rache"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0"
+#endif
+#define MyAppPublisher "lanterner3054"
 #define MyAppExeName "DesktopMemo.exe"
 
 [Setup]
@@ -16,8 +18,8 @@ PrivilegesRequired=lowest
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=C:\Users\rache\memo-app\installer_out
-OutputBaseFilename=客户跟进_安装程序_v{#MyAppVersion}
+OutputDir=installer_out
+OutputBaseFilename=desktop-crm-memo-setup-v{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -33,7 +35,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 ; bundle the whole PyInstaller onedir output
-Source: "C:\Users\rache\memo-app\dist\DesktopMemo\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "dist\DesktopMemo\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
